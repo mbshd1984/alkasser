@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>حاسبة المرابحة – المصرف العراقي الإسلامي</title>
+<style>
+  body{font-family:'Tahoma',sans-serif;background:#f9f9f9;text-align:center;padding:20px;color:#333}
+  h1{color:#007a33;margin-bottom:20px}
+  label{display:block;margin:10px auto 5px;font-weight:bold;text-align:right;max-width:320px}
+  input,select,button{display:block;padding:10px;margin:5px auto 15px;width:80%;max-width:300px;border:1px solid #ccc;border-radius:8px;font-size:16px}
+  button{background:#007a33;color:#fff;border:none;cursor:pointer}
+  button:hover{background:#005d27}
+  .result{background:#fff;padding:15px;border-radius:8px;max-width:350px;margin:0 auto;box-shadow:0 2px 6px rgba(0,0,0,.1);text-align:right;direction:rtl}
+  .msg{color:#b00020;font-size:14px;margin-top:-8px;margin-bottom:10px;display:none;text-align:right;max-width:320px;margin-inline:auto}
+</style>
+</head>
+<body>
+
+<h1>حاسبة المرابحة – المصرف العراقي الإسلامي</h1>
+
+<label for="monthly">القسط الشهري (دينار)</label>
+<input type="text" id="monthly" placeholder="أدخل القسط الشهري" inputmode="numeric" autocomplete="off">
+<div id="m-msg" class="msg"></div>
+
+<label for="years">مدة المرابحة (بالسنوات)</label>
+<input type="text" id="years" placeholder="أدخل عدد السنوات" inputmode="decimal" autocomplete="off">
+<div id="y-msg" class="msg"></div>
+
+<label for="rate">نسبة الربح السنوية</label>
+<select id="rate">
+<option value="2">2%</option>
+  <option value="6">6%</option>
+  <option value="6.25">6.25%</option>
+  <option value="7">7%</option>
+</select>
+
+<button id="calcBtn" type="button">احسب</button>
+
+<div id="result" class="result" style="display:none;"></div>
+
+<script>
+/* تحويل الأرقام العربية وفواصل iOS إلى لاتينية */
+const digitMap = {'٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9','۰':'0','۱':'1','۲':'2','۳':'3','۴':'4','۵':'5','۶':'6','۷':'7','۸':'8','۹':'9'};
+function toLatinDigits(s=''){
+  return s.replace(/[\u0660-\u0669\u06F0-\u06F9]/g, ch => digitMap[ch] ?? ch)
+          .replace(/\u060C/g, ',')   // ، → ,
+          .replace(/\u066B/g, '.');  // ٫ → .
+}
+const fmt = new Intl.NumberFormat('en-US');
+
+function parseMonthly(val){
+  // القسط الشهري كعدد صحيح بالدينار: احذف كل شيء غير رقم
+  const clean = toLatinDigits(val).replace(/[^\d]/g,'').trim();
+  if(!clean) return NaN;
+  return parseInt(clean,10);
+}
+function parseDecimal(val){
+  // السنوات والنسبة: عشري مع دعم . و ,
+  let s = toLatinDigits(val).replace(/[^\d.,\-]/g,'').trim();
+  if(!s) return NaN;
+  const lastDot = s.lastIndexOf('.');
+  const lastComma = s.lastIndexOf(',');
+  if (lastComma > lastDot) {
+    s = s.replace(/\./g,'').replace(/,/g,'.');
+  } else {
+    s = s.replace(/,/g,'');
+  }
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : NaN;
+}
+function formatIQD(n){ return fmt.format(Math.round(n)); }
+function showMsg(id, txt){ const el=document.getElementById(id); if(!txt){el.style.display='none';el.textContent='';return;} el.textContent=txt; el.style.display='block'; }
+
+/* تنسيق القسط بعد الخروج */
+document.getElementById('monthly').addEventListener('blur', (e)=>{
+  const n = parseMonthly(e.target.value);
+  if (Number.isFinite(n)) { e.target.value = formatIQD(n); showMsg('m-msg',''); }
+  else if (e.target.value.trim()!=='') { showMsg('m-msg','القيمة غير صالحة. يُرجى إدخال أرقام فقط.'); }
+  else { showMsg('m-msg',''); }
+});
+
+/* تنظيف لطيف أثناء الإدخال لمنع مشاكل iOS */
+['monthly','years'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', (e)=>{
+    e.target.value = toLatinDigits(e.target.value);
+  });
+});
+
+document.getElementById('calcBtn').addEventListener('click', ()=>{
+  const monthly = parseMonthly(document.getElementById('monthly').value);
+  const years   = parseDecimal(document.getElementById('years').value);
+  const rate    = parseDecimal(document.getElementById('rate').value);
+
+  let hasErr = false;
+  if (!Number.isFinite(monthly) || monthly <= 0){ showMsg('m-msg','أدخل قسطًا شهريًا صالحًا أكبر من صفر.'); hasErr = true; } else { showMsg('m-msg',''); }
+  if (!Number.isFinite(years)   || years   <= 0){ showMsg('y-msg','أدخل مدة (بالسنوات) صالحة أكبر من صفر.'); hasErr = true; } else { showMsg('y-msg',''); }
+  if (!Number.isFinite(rate) || rate < 0){ alert('نسبة الربح غير صالحة.'); hasErr = true; }
+  if (hasErr) return;
+
+  // مرابحة ثابتة (نفس معادلتك): totalRate = r * years
+  const n = Math.round(years * 12);    // عدد الأشهر
+  const r = rate / 100;                // سنوي كعشري
+  const totalPayment = monthly * n;    // مجموع الأقساط
+  const totalRate = r * years;         // النسبة الكلية على رأس المال
+  const principal = totalPayment / (1 + totalRate);
+  const profit    = totalPayment - principal;
+
+  const res = document.getElementById('result');
+  res.style.display = 'block';
+  res.innerHTML =
+    `رأس المال: ${formatIQD(principal)} دينار<br>`+
+    `إجمالي الأرباح: ${formatIQD(profit)} دينار<br>`+
+    `المجموع الكلي: ${formatIQD(totalPayment)} دينار`;
+});
+</script>
+
+</body>
+</html>
